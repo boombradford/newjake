@@ -40,122 +40,121 @@ function getBodyParam(
 }
 
 export function registerAuthRoutes(app: Express) {
-}
+    // Local auth routes
+    if (ENV.authMode === "local") {
+        // Register endpoint
+        app.post("/api/auth/register", async (req: Request, res: Response) => {
+            const email = getBodyParam(req, "email");
+            const password = getBodyParam(req, "password");
+            const name = getBodyParam(req, "name");
 
-// Local auth routes
-if (ENV.authMode === "local") {
-    // Register endpoint
-    app.post("/api/auth/register", async (req: Request, res: Response) => {
-        const email = getBodyParam(req, "email");
-        const password = getBodyParam(req, "password");
-        const name = getBodyParam(req, "name");
-
-        if (!email || !password) {
-            res.status(400).json({ error: "Email and password are required" });
-            return;
-        }
-
-        // Basic email validation
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            res.status(400).json({ error: "Invalid email format" });
-            return;
-        }
-
-        // Password strength check
-        if (password.length < 8) {
-            res
-                .status(400)
-                .json({ error: "Password must be at least 8 characters" });
-            return;
-        }
-
-        try {
-            // Check if user already exists
-            const existingUser = await db.getUserByEmail(email);
-            if (existingUser) {
-                res.status(409).json({ error: "Email already registered" });
+            if (!email || !password) {
+                res.status(400).json({ error: "Email and password are required" });
                 return;
             }
 
-            // Create user with hashed password
-            const passwordHash = await hashPassword(password);
-            const openId = `local-${crypto.randomUUID()}`;
-
-            await db.upsertUser({
-                openId,
-                email,
-                name: name || null,
-                passwordHash,
-                loginMethod: "local",
-                lastSignedIn: new Date(),
-            });
-
-            // Create session
-            const sessionToken = await sdk.createSessionToken(openId, {
-                name: name || email,
-                expiresInMs: ONE_YEAR_MS,
-            });
-
-            const cookieOptions = getSessionCookieOptions(req);
-            res.cookie(COOKIE_NAME, sessionToken, {
-                ...cookieOptions,
-                maxAge: ONE_YEAR_MS,
-            });
-
-            res.json({ success: true, message: "Registration successful" });
-        } catch (error) {
-            console.error("[Auth] Registration failed", error);
-            res.status(500).json({ error: "Registration failed" });
-        }
-    });
-
-    // Login endpoint
-    app.post("/api/auth/login", async (req: Request, res: Response) => {
-        const email = getBodyParam(req, "email");
-        const password = getBodyParam(req, "password");
-
-        if (!email || !password) {
-            (res as any).status(400).json({ error: "Email and password are required" });
-            return;
-        }
-
-        try {
-            // Get user by email
-            const user = await db.getUserByEmail(email);
-            if (!user || !user.passwordHash) {
-                (res as any).status(401).json({ error: "Invalid email or password" });
+            // Basic email validation
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                res.status(400).json({ error: "Invalid email format" });
                 return;
             }
 
-            // Verify password
-            const isValid = await verifyPassword(password, user.passwordHash);
-            if (!isValid) {
-                (res as any).status(401).json({ error: "Invalid email or password" });
+            // Password strength check
+            if (password.length < 8) {
+                res
+                    .status(400)
+                    .json({ error: "Password must be at least 8 characters" });
                 return;
             }
 
-            // Update last signed in
-            await db.upsertUser({
-                openId: user.openId,
-                lastSignedIn: new Date(),
-            });
+            try {
+                // Check if user already exists
+                const existingUser = await db.getUserByEmail(email);
+                if (existingUser) {
+                    res.status(409).json({ error: "Email already registered" });
+                    return;
+                }
 
-            // Create session
-            const sessionToken = await sdk.createSessionToken(user.openId, {
-                name: user.name || email,
-                expiresInMs: ONE_YEAR_MS,
-            });
+                // Create user with hashed password
+                const passwordHash = await hashPassword(password);
+                const openId = `local-${crypto.randomUUID()}`;
 
-            const cookieOptions = getSessionCookieOptions(req);
-            (res as any).cookie(COOKIE_NAME, sessionToken, {
-                ...cookieOptions,
-                maxAge: ONE_YEAR_MS,
-            });
+                await db.upsertUser({
+                    openId,
+                    email,
+                    name: name || null,
+                    passwordHash,
+                    loginMethod: "local",
+                    lastSignedIn: new Date(),
+                });
 
-            (res as any).json({ success: true, message: "Login successful" });
-        } catch (error) {
-            console.error("[Auth] Login failed", error);
-            (res as any).status(500).json({ error: "Login failed" });
-        }
-    });
+                // Create session
+                const sessionToken = await sdk.createSessionToken(openId, {
+                    name: name || email,
+                    expiresInMs: ONE_YEAR_MS,
+                });
+
+                const cookieOptions = getSessionCookieOptions(req);
+                res.cookie(COOKIE_NAME, sessionToken, {
+                    ...cookieOptions,
+                    maxAge: ONE_YEAR_MS,
+                });
+
+                res.json({ success: true, message: "Registration successful" });
+            } catch (error) {
+                console.error("[Auth] Registration failed", error);
+                res.status(500).json({ error: "Registration failed" });
+            }
+        });
+
+        // Login endpoint
+        app.post("/api/auth/login", async (req: Request, res: Response) => {
+            const email = getBodyParam(req, "email");
+            const password = getBodyParam(req, "password");
+
+            if (!email || !password) {
+                (res as any).status(400).json({ error: "Email and password are required" });
+                return;
+            }
+
+            try {
+                // Get user by email
+                const user = await db.getUserByEmail(email);
+                if (!user || !user.passwordHash) {
+                    (res as any).status(401).json({ error: "Invalid email or password" });
+                    return;
+                }
+
+                // Verify password
+                const isValid = await verifyPassword(password, user.passwordHash);
+                if (!isValid) {
+                    (res as any).status(401).json({ error: "Invalid email or password" });
+                    return;
+                }
+
+                // Update last signed in
+                await db.upsertUser({
+                    openId: user.openId,
+                    lastSignedIn: new Date(),
+                });
+
+                // Create session
+                const sessionToken = await sdk.createSessionToken(user.openId, {
+                    name: user.name || email,
+                    expiresInMs: ONE_YEAR_MS,
+                });
+
+                const cookieOptions = getSessionCookieOptions(req);
+                (res as any).cookie(COOKIE_NAME, sessionToken, {
+                    ...cookieOptions,
+                    maxAge: ONE_YEAR_MS,
+                });
+
+                (res as any).json({ success: true, message: "Login successful" });
+            } catch (error) {
+                console.error("[Auth] Login failed", error);
+                (res as any).status(500).json({ error: "Login failed" });
+            }
+        });
+    }
 }
