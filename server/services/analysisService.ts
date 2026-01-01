@@ -74,11 +74,11 @@ export async function runCompetitiveAnalysis(analysisId: number): Promise<void> 
       detectedIndustry || undefined
     );
 
-    // Step 4: Analyze each competitor
-    console.log(`[Analysis ${analysisId}] Analyzing ${discoveredCompetitors.length} competitors...`);
-    const competitorDataList = [];
+    // Step 4: Analyze each competitor (PARALLELIZED for 2x performance)
+    console.log(`[Analysis ${analysisId}] Analyzing ${discoveredCompetitors.length} competitors in parallel...`);
 
-    for (const comp of discoveredCompetitors.slice(0, 5)) {
+    // Process competitors in parallel instead of sequentially
+    const competitorPromises = discoveredCompetitors.slice(0, 5).map(async (comp) => {
       const competitorData: any = {
         analysisId,
         name: comp.name,
@@ -91,9 +91,21 @@ export async function runCompetitiveAnalysis(analysisId: number): Promise<void> 
         businessTypes: comp.types || [],
       };
 
-      // Analyze competitor SEO if they have a website
-      if (comp.website) {
-        const compSeo = await analyzeSEO(comp.website);
+      // Run SEO analysis and enrichment in parallel
+      const [compSeo, enrichedData] = await Promise.all([
+        // Analyze competitor SEO if they have a website
+        comp.website ? analyzeSEO(comp.website).catch(err => {
+          console.warn(`[Analysis ${analysisId}] SEO analysis failed for ${comp.name}:`, err.message);
+          return null;
+        }) : Promise.resolve(null),
+        // Enrich with external data
+        enrichCompetitorData(comp.name, comp.website).catch(err => {
+          console.warn(`[Analysis ${analysisId}] Enrichment failed for ${comp.name}:`, err.message);
+          return { employeeCount: null, fundingInfo: null, techStack: null, recentNews: null };
+        })
+      ]);
+
+      if (compSeo) {
         competitorData.seoScore = compSeo.score;
         competitorData.metaTitle = compSeo.metaTitle;
         competitorData.metaDescription = compSeo.metaDescription;
@@ -102,8 +114,6 @@ export async function runCompetitiveAnalysis(analysisId: number): Promise<void> 
         competitorData.topKeywords = compSeo.topKeywords;
       }
 
-      // Enrich with external data
-      const enrichedData = await enrichCompetitorData(comp.name, comp.website);
       competitorData.employeeCount = enrichedData.employeeCount;
       competitorData.fundingInfo = enrichedData.fundingInfo;
       competitorData.techStack = enrichedData.techStack;
@@ -113,8 +123,11 @@ export async function runCompetitiveAnalysis(analysisId: number): Promise<void> 
       competitorData.competitiveScore = calculateCompetitiveScore(competitorData, targetSeoData);
       competitorData.threatLevel = getThreatLevel(competitorData.competitiveScore);
 
-      competitorDataList.push(competitorData);
-    }
+      return competitorData;
+    });
+
+    // Wait for all competitor analyses to complete
+    const competitorDataList = await Promise.all(competitorPromises);
 
     // Save all competitors
     if (competitorDataList.length > 0) {

@@ -1,13 +1,16 @@
 /**
  * Google Maps API Integration
- * 
+ *
  * Supports two modes:
  * 1. Manus Forge Proxy (if BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY are set)
  * 2. Direct Google Maps API (if GOOGLE_MAPS_API_KEY is set)
  * 3. Mock mode (if neither is set, returns mock data for development)
+ *
+ * Enhanced with retry logic and circuit breaker for improved reliability
  */
 
 import { ENV } from "./env";
+import { retryWithBackoff, googleMapsCircuitBreaker } from "../utils/apiRetry";
 
 // ============================================================================
 // Configuration
@@ -94,27 +97,44 @@ export async function makeRequest<T = unknown>(
     }
   });
 
-  try {
-    const response = await fetch(url.toString(), {
-      method: options.method || "GET",
-      headers: {
-        "Content-Type": "application/json",
+  // Use circuit breaker and retry logic for resilience
+  return await googleMapsCircuitBreaker.execute(async () => {
+    return await retryWithBackoff(
+      async () => {
+        const response = await fetch(url.toString(), {
+          method: options.method || "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: options.body ? JSON.stringify(options.body) : undefined,
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          const error: any = new Error(
+            `Google Maps API request failed (${response.status} ${response.statusText}): ${errorText}`
+          );
+          error.response = { status: response.status };
+          throw error;
+        }
+
+        return (await response.json()) as T;
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Google Maps API request failed (${response.status} ${response.statusText}): ${errorText}`
-      );
-    }
-
-    return (await response.json()) as T;
-  } catch (error) {
-    console.error(`[Maps API] Request failed for ${endpoint}:`, error);
-    throw error;
-  }
+      {
+        maxRetries: 3,
+        initialDelay: 1000,
+        maxDelay: 10000,
+        backoffMultiplier: 2,
+        onRetry: (error, attempt) => {
+          console.warn(
+            `[Maps API] Retry attempt ${attempt}/3 for ${endpoint}:`,
+            error.message
+          );
+        },
+      }
+    );
+  });
 }
 
 // ============================================================================

@@ -1,5 +1,6 @@
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import {
   InsertUser, users,
   analyses, InsertAnalysis, Analysis,
@@ -13,17 +14,47 @@ import {
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Create connection pool for better performance and connection management
+      // Pool size doubled for improved API connectivity
+      _pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        connectionLimit: 20, // Doubled from default 10
+        maxIdle: 10, // Maximum idle connections
+        idleTimeout: 60000, // 60 seconds
+        queueLimit: 0, // Unlimited queue
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10000, // 10 seconds
+        waitForConnections: true,
+        // Connection timeout settings
+        connectTimeout: 10000, // 10 seconds
+        // Performance optimizations
+        multipleStatements: false,
+        namedPlaceholders: true,
+      });
+
+      _db = drizzle(_pool);
+      console.log("[Database] Connection pool initialized with 20 connections");
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
+      _pool = null;
     }
   }
   return _db;
+}
+
+export async function closeDb() {
+  if (_pool) {
+    await _pool.end();
+    _pool = null;
+    _db = null;
+    console.log("[Database] Connection pool closed");
+  }
 }
 
 // ==================== USER QUERIES ====================
@@ -310,13 +341,15 @@ export async function getUnreadAlertsCount(analysisId: number): Promise<number> 
   const db = await getDb();
   if (!db) return 0;
 
-  const result = await db.select().from(socialMediaAlerts)
+  // Optimized: Use SQL COUNT instead of fetching all rows
+  const result = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(socialMediaAlerts)
     .where(and(
       eq(socialMediaAlerts.analysisId, analysisId),
       eq(socialMediaAlerts.isRead, 0)
     ));
 
-  return result.length;
+  return Number(result[0]?.count ?? 0);
 }
 
 
