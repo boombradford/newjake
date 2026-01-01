@@ -9,15 +9,8 @@ interface RateLimitStore {
 
 const store: RateLimitStore = {};
 
-// Cleanup old entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  Object.keys(store).forEach(key => {
-    if (store[key].resetTime < now) {
-      delete store[key];
-    }
-  });
-}, 5 * 60 * 1000);
+// Note: In serverless, the store resets per invocation anyway
+// For production with high traffic, use Redis or similar
 
 export interface RateLimiterOptions {
   windowMs?: number; // Time window in milliseconds
@@ -72,7 +65,7 @@ export function createRateLimiter(options: RateLimiterOptions = {}) {
     // If skipSuccessfulRequests, decrement on successful response
     if (skipSuccessfulRequests) {
       const originalSend = (res as any).send;
-      (res as any).send = function(this: any, data: any) {
+      (res as any).send = function (this: any, data: any) {
         if ((res as any).statusCode < 400) {
           store[key].count = Math.max(0, store[key].count - 1);
         }
