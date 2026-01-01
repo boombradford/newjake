@@ -57,13 +57,13 @@ export function createRateLimiter(options: RateLimiterOptions = {}) {
     const resetTime = Math.ceil((store[key].resetTime - now) / 1000);
 
     // Set rate limit headers
-    res.setHeader('X-RateLimit-Limit', max.toString());
-    res.setHeader('X-RateLimit-Remaining', remaining.toString());
-    res.setHeader('X-RateLimit-Reset', resetTime.toString());
+    (res as any).setHeader('X-RateLimit-Limit', max.toString());
+    (res as any).setHeader('X-RateLimit-Remaining', remaining.toString());
+    (res as any).setHeader('X-RateLimit-Reset', resetTime.toString());
 
     if (store[key].count > max) {
-      res.setHeader('Retry-After', resetTime.toString());
-      return res.status(429).json({
+      (res as any).setHeader('Retry-After', resetTime.toString());
+      return (res as any).status(429).json({
         error: message,
         retryAfter: resetTime
       });
@@ -71,16 +71,16 @@ export function createRateLimiter(options: RateLimiterOptions = {}) {
 
     // If skipSuccessfulRequests, decrement on successful response
     if (skipSuccessfulRequests) {
-      const originalSend = res.send;
-      res.send = function(data: any) {
-        if (res.statusCode < 400) {
+      const originalSend = (res as any).send;
+      (res as any).send = function(this: any, data: any) {
+        if ((res as any).statusCode < 400) {
           store[key].count = Math.max(0, store[key].count - 1);
         }
         return originalSend.call(this, data);
-      } as typeof res.send;
+      };
     }
 
-    next();
+    (next as any)();
   };
 }
 

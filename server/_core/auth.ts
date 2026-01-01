@@ -160,7 +160,7 @@ export function registerAuthRoutes(app: Express) {
             const password = getBodyParam(req, "password");
 
             if (!email || !password) {
-                res.status(400).json({ error: "Email and password are required" });
+                (res as any).status(400).json({ error: "Email and password are required" });
                 return;
             }
 
@@ -168,14 +168,14 @@ export function registerAuthRoutes(app: Express) {
                 // Get user by email
                 const user = await db.getUserByEmail(email);
                 if (!user || !user.passwordHash) {
-                    res.status(401).json({ error: "Invalid email or password" });
+                    (res as any).status(401).json({ error: "Invalid email or password" });
                     return;
                 }
 
                 // Verify password
                 const isValid = await verifyPassword(password, user.passwordHash);
                 if (!isValid) {
-                    res.status(401).json({ error: "Invalid email or password" });
+                    (res as any).status(401).json({ error: "Invalid email or password" });
                     return;
                 }
 
@@ -192,15 +192,15 @@ export function registerAuthRoutes(app: Express) {
                 });
 
                 const cookieOptions = getSessionCookieOptions(req);
-                res.cookie(COOKIE_NAME, sessionToken, {
+                (res as any).cookie(COOKIE_NAME, sessionToken, {
                     ...cookieOptions,
                     maxAge: ONE_YEAR_MS,
                 });
 
-                res.json({ success: true, message: "Login successful" });
+                (res as any).json({ success: true, message: "Login successful" });
             } catch (error) {
                 console.error("[Auth] Login failed", error);
-                res.status(500).json({ error: "Login failed" });
+                (res as any).status(500).json({ error: "Login failed" });
             }
         });
     }
