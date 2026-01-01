@@ -1,0 +1,62 @@
+CREATE TABLE `socialMediaAlerts` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`analysisId` int NOT NULL,
+	`competitorId` int NOT NULL,
+	`alertType` enum('viral_post','high_engagement','new_campaign','mention_spike','follower_surge') NOT NULL,
+	`platform` enum('twitter','facebook','instagram','linkedin','youtube','tiktok') NOT NULL,
+	`title` varchar(255) NOT NULL,
+	`description` text,
+	`postId` int,
+	`isRead` int DEFAULT 0,
+	`importance` enum('low','medium','high') DEFAULT 'medium',
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `socialMediaAlerts_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `socialMediaMetrics` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`competitorId` int NOT NULL,
+	`analysisId` int NOT NULL,
+	`platform` enum('twitter','facebook','instagram','linkedin','youtube','tiktok') NOT NULL,
+	`profileUrl` varchar(500),
+	`username` varchar(255),
+	`followers` int,
+	`following` int,
+	`totalPosts` int,
+	`postsPerWeek` decimal(5,2),
+	`avgEngagementRate` decimal(5,2),
+	`avgLikesPerPost` int,
+	`avgCommentsPerPost` int,
+	`avgSharesPerPost` int,
+	`textPostsPercent` int,
+	`imagePostsPercent` int,
+	`videoPostsPercent` int,
+	`topHashtags` json,
+	`bestPostingTimes` json,
+	`fetchedAt` timestamp NOT NULL DEFAULT (now()),
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `socialMediaMetrics_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `socialMediaPosts` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`competitorId` int NOT NULL,
+	`analysisId` int NOT NULL,
+	`platform` enum('twitter','facebook','instagram','linkedin','youtube','tiktok') NOT NULL,
+	`postId` varchar(255),
+	`postUrl` varchar(500),
+	`content` text,
+	`contentType` enum('text','image','video','link','carousel') DEFAULT 'text',
+	`mediaUrls` json,
+	`hashtags` json,
+	`mentions` json,
+	`likes` int DEFAULT 0,
+	`comments` int DEFAULT 0,
+	`shares` int DEFAULT 0,
+	`views` int,
+	`engagementRate` decimal(5,2),
+	`postedAt` timestamp,
+	`fetchedAt` timestamp NOT NULL DEFAULT (now()),
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `socialMediaPosts_id` PRIMARY KEY(`id`)
+);
