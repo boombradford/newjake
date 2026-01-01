@@ -35,7 +35,8 @@ export function createRateLimiter(options: RateLimiterOptions = {}) {
     skipSuccessfulRequests = false,
     keyGenerator = (req: Request) => {
       // Use IP address or user ID from context
-      return req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown';
+      const ip = (req as any).ip || (req as any).headers?.['x-forwarded-for']?.toString() || 'unknown';
+      return ip;
     }
   } = options;
 
@@ -71,12 +72,12 @@ export function createRateLimiter(options: RateLimiterOptions = {}) {
     // If skipSuccessfulRequests, decrement on successful response
     if (skipSuccessfulRequests) {
       const originalSend = res.send;
-      res.send = function(data) {
+      res.send = function(data: any) {
         if (res.statusCode < 400) {
           store[key].count = Math.max(0, store[key].count - 1);
         }
         return originalSend.call(this, data);
-      };
+      } as typeof res.send;
     }
 
     next();

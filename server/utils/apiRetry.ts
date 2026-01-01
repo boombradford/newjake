@@ -106,7 +106,8 @@ export async function retryWithBackoff<T>(
         onRetry(error, attempt);
       }
 
-      console.warn(`[Retry] Attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms:`, error.message);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`[Retry] Attempt ${attempt}/${maxRetries} failed, retrying in ${delay}ms:`, errorMessage);
       await sleep(delay);
     }
   }
