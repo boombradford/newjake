@@ -35,6 +35,10 @@ export async function getDb() {
         // Performance optimizations
         multipleStatements: false,
         namedPlaceholders: true,
+        // SSL configuration for Aiven and other cloud providers
+        ssl: {
+          rejectUnauthorized: false
+        },
       });
 
       _db = drizzle(_pool);
